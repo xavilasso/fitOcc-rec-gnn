@@ -27,24 +27,24 @@ df = pd.DataFrame({
 
 #PLOTEO SOLO EJERCICIOS
 
-plt.figure(figsize=(10,8))
+# plt.figure(figsize=(10,8))
 
-df_ex = df[df["type"] == "Exercise"]
+# df_ex = df[df["type"] == "Exercise"]
 
-plt.scatter(df_ex["x"], df_ex["y"], alpha=0.6, s=20)
+# plt.scatter(df_ex["x"], df_ex["y"], alpha=0.6, s=20)
 
-plt.title("Exercise embeddings (R-GCN + KG)")
-plt.xlabel("UMAP-1")
-plt.ylabel("UMAP-2")
-plt.show()
+# plt.title("Exercise embeddings (R-GCN + KG)")
+# plt.xlabel("UMAP-1")
+# plt.ylabel("UMAP-2")
+# plt.show()
 
 
 # PLOTEO GENERAL
 
-# for t in df["type"].unique():
-#     subset = df[df["type"] == t]
-#     plt.scatter(subset["x"], subset["y"], label=t, alpha=0.6, s=20)
+for t in df["type"].unique():
+    subset = df[df["type"] == t]
+    plt.scatter(subset["x"], subset["y"], label=t, alpha=0.6, s=20)
 
-# plt.legend()
-# plt.title("Node embeddings (R-GCN + KG)")
-# plt.show()
+plt.legend()
+plt.title("Node embeddings (R-GCN + KG)")
+plt.show()

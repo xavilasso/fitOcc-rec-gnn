@@ -1,5 +1,8 @@
 # ouput
-fitkg_output
+fitkg_output/
+emb/
+old_versions/
+output/
 
 
 # Byte-compiled / optimized / DLL files

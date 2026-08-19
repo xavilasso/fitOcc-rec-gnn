@@ -3,7 +3,7 @@
 """
 Analisis estadistico de results_raw.csv.
 
-Produce lo que pide el review para la Seccion 5.4:
+Produce:
   - media +/- desviacion estandar por modelo y por lambda
   - prueba de significancia PAREADA sobre las 30 semillas (Wilcoxon signed-rank)
   - correccion por comparaciones multiples (Holm-Bonferroni)

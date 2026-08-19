@@ -3,39 +3,9 @@
 """
 Runner unificado de experimentos para el Fitness Knowledge Graph.
 
-Sustituye a train_gcn_v2.py y train_rgcn_v2.py. Corre TODOS los modelos con el
-mismo protocolo, de modo que las diferencias entre ellos solo puedan venir del
-encoder / decoder y no del entrenamiento.
+Corre TODOS los modelos con el mismo protocolo, de modo que las diferencias entre ellos solo puedan venir del encoder / decoder y no del entrenamiento.
 
-Cambios respecto de los scripts originales (cada uno responde a una objecion del review):
-
-  1. Split train/val/test (70/10/20) estratificado por relacion. El early stopping
-     y el guardado del mejor modelo se hacen sobre VAL. La metrica reportada se
-     calcula UNA sola vez sobre TEST. Antes se seleccionaba el mejor epoch sobre
-     test, lo que sesga al alza todos los numeros.
-
-  2. Aristas inversas para el message passing. En el grafo original casi todas las
-     aristas salen del ejercicio (targets, requires, hasType, hasIntensity,
-     supportsGoal), asi que los nodos de ejercicio NO recibian mensajes de sus
-     vecinos: el message passing no podia acercar ejercicios que comparten musculo.
-     Se añaden relaciones inversas (practica estandar del paper de R-GCN) SOLO al
-     grafo de propagacion; el scoring se sigue haciendo sobre las aristas originales.
-
-  3. Muestreo negativo restringido por tipo y filtrado. Los negativos se generan
-     corrompiendo cabeza o cola DENTRO del rango observado de cada relacion, y se
-     rechazan los que resultan ser triples verdaderos. Se reporta ademas la tasa de
-     negativos imposibles por relacion (diagnostico del efecto bipartito completo).
-
-  4. Mismo decoder y misma normalizacion disponibles para todos los modelos, para
-     poder separar "message passing consciente de relaciones" de "scoring consciente
-     de relaciones" y de "embeddings normalizados".
-
-  5. Perdida de margen POR PAR (triplete) en lugar de a nivel de lote.
-
-  6. Metricas semanticas con dos ground truths independientes (musculo compartido y
-     tipo de ejercicio) mas un baseline no aprendido (Jaccard sobre musculos).
-
-Uso tipico:
+Uso:
 
     # comprobacion rapida con grafo sintetico (no toca tus datos)
     python fkg_experiments.py --smoke
@@ -268,8 +238,8 @@ class Encoder(nn.Module):
         # asi que TODOS los ejercicios comparten el mismo vector de entrada.
         # Sin esto, mf y distmult parten de 64 dims aprendibles por nodo y gcn y
         # rgcn de un vector identico para 873 nodos: la comparacion mediria la
-        # riqueza de la entrada, no el encoder. Es lo que hace el paper del R-GCN
-        # para grafos sin atributos.
+        # riqueza de la entrada, no el encoder.
+        
         self.learnable_input = learnable_input and kind in ("gcn", "rgcn")
         eff_in = input_dim if self.learnable_input else in_dim
         if self.learnable_input:

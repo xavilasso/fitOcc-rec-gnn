@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Figura del espacio de embeddings para el manuscrito.
+Figura del espacio de embeddings.
 
 Proyecta a dos dimensiones los embeddings de ejercicio aprendidos por cada
 modelo y los colorea por tipo de ejercicio, que es el criterio semantico
@@ -15,11 +15,7 @@ hiperparametros para todos, de modo que los paneles sean comparables entre si.
 
 Salidas: <out>.svg (vectorial, para el manuscrito) y <out>.png a 600 dpi.
 
-Sobre el color: se colorean los tres tipos de ejercicio mas frecuentes y el
-resto se agrupa en una categoria neutra. La paleta esta validada para vision
-con deficiencia de color en el caso mas exigente, en el que cualquier par de
-colores puede aparecer contiguo, que es justamente lo que ocurre en un
-diagrama de dispersion.
+Se colorean los tres tipos de ejercicio mas frecuentes y el resto se agrupa en una categoria neutra.
 """
 
 import argparse

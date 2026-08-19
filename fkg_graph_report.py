@@ -3,7 +3,7 @@
 """
 Caracterizacion estructural del Fitness Knowledge Graph.
 
-Produce el analisis que el review pide para la Seccion 5.1 y que las tablas
+Produce el analisis estadístico del grafo y que las tablas
 actuales no contienen: distribucion de grado, componentes conexas, densidad por
 tipo de relacion, cardinalidad de dominio y rango, y efecto hub.
 

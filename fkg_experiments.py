@@ -161,6 +161,28 @@ def add_inverse_relations(edge_index, edge_type, num_rel):
     return (torch.cat([edge_index, inv_index], dim=1),
             torch.cat([edge_type, inv_type]))
 
+def exclude_relations(edge_index, edge_type, rel2id, names):
+    """Quita del grafo las relaciones indicadas y reindexa las restantes.
+ 
+    Devuelve (edge_index, edge_type, rel2id) ya compactados: los ids de relacion
+    vuelven a ser contiguos desde 0, de modo que el numero de matrices W_r del
+    R-GCN y de vectores de relacion de DistMult corresponda exactamente a las
+    relaciones que quedan. Sin reindexar quedaria una ranura muerta por cada
+    relacion excluida y el conteo de parametros no seria comparable.
+    """
+    unknown = [n for n in names if n not in rel2id]
+    if unknown:
+        raise SystemExit(f"Relaciones desconocidas en --exclude-relations: {unknown}. "
+                         f"Disponibles: {sorted(rel2id)}")
+    drop = {rel2id[n] for n in names}
+    keep_mask = ~torch.isin(edge_type, torch.tensor(sorted(drop), dtype=edge_type.dtype))
+    ei, et = edge_index[:, keep_mask], edge_type[keep_mask]
+ 
+    kept_ids = sorted({int(v) for v in rel2id.values()} - drop)
+    old2new = {old: i for i, old in enumerate(kept_ids)}
+    et = torch.tensor([old2new[int(v)] for v in et.tolist()], dtype=torch.long)
+    new_rel2id = {k: old2new[v] for k, v in rel2id.items() if v not in drop}
+    return ei, et, new_rel2id, int(keep_mask.numel() - keep_mask.sum())
 
 # =====================================================================
 # 3. Muestreo negativo restringido por tipo y filtrado
@@ -534,22 +556,26 @@ def run_once(cfg, G, model_id, lam, seed):
 
     # ---- metricas semanticas con dos ground truths independientes ----
     z_ex = z[exercises].detach().cpu()
-
-    muscles_all = sorted({int(t) for t in
-                          edge_index[1][edge_type == G["rel2id"]["targets"]].tolist()})
-    M_all = incidence_matrix(edge_index, edge_type, G["rel2id"]["targets"], exercises, muscles_all)
+ 
+    # IMPORTANTE: la verdad de referencia se construye SIEMPRE con el grafo
+    # completo, tambien cuando una relacion fue excluida del entrenamiento. Es lo
+    # que permite el control de fuga: con --exclude-relations hasType el modelo
+    # nunca ve esa relacion, pero se le sigue midiendo la separacion por tipo.
+    fi, ft, frel = G["edge_index_full"], G["edge_type_full"], G["rel2id_full"]
+ 
+    muscles_all = sorted({int(t) for t in fi[1][ft == frel["targets"]].tolist()})
+    M_all = incidence_matrix(fi, ft, frel["targets"], exercises, muscles_all)
     related_muscle = shared_mask(M_all)
-
-    types_all = sorted({int(t) for t in
-                        edge_index[1][edge_type == G["rel2id"]["hasType"]].tolist()})
-    T_all = incidence_matrix(edge_index, edge_type, G["rel2id"]["hasType"], exercises, types_all)
+ 
+    types_all = sorted({int(t) for t in fi[1][ft == frel["hasType"]].tolist()})
+    T_all = incidence_matrix(fi, ft, frel["hasType"], exercises, types_all)
     related_type = shared_mask(T_all)
-
+ 
     d_mus, r_mus = semantic_metrics(z_ex, related_muscle, cfg.topk)
     d_typ, r_typ = semantic_metrics(z_ex, related_type, cfg.topk)
-
+ 
     type_labels = np.array([np.argmax(row) if row.any() else -1 for row in T_all])
-
+ 
     return dict(
         model=model_id, label=MODEL_ZOO[model_id][2], lam=lam, seed=seed,
         params=sum(p.numel() for p in model.parameters()),
@@ -563,14 +589,16 @@ def run_once(cfg, G, model_id, lam, seed):
 
 def jaccard_baseline(G, cfg):
     """Baseline sin aprendizaje: similitud de Jaccard sobre conjuntos de musculos."""
-    edge_index, edge_type = G["edge_index"], G["edge_type"]
+    # baseline sobre el grafo COMPLETO: no depende de que se haya excluido nada
+    edge_index, edge_type = G["edge_index_full"], G["edge_type_full"]
+    rel2id = G["rel2id_full"]
     exercises = exercise_nodes(G, cfg)
-
-    muscles = sorted({int(t) for t in edge_index[1][edge_type == G["rel2id"]["targets"]].tolist()})
-    M = incidence_matrix(edge_index, edge_type, G["rel2id"]["targets"], exercises, muscles)
-    types = sorted({int(t) for t in edge_index[1][edge_type == G["rel2id"]["hasType"]].tolist()})
-    T = incidence_matrix(edge_index, edge_type, G["rel2id"]["hasType"], exercises, types)
-
+ 
+    muscles = sorted({int(t) for t in edge_index[1][edge_type == rel2id["targets"]].tolist()})
+    M = incidence_matrix(edge_index, edge_type, rel2id["targets"], exercises, muscles)
+    types = sorted({int(t) for t in edge_index[1][edge_type == rel2id["hasType"]].tolist()})
+    T = incidence_matrix(edge_index, edge_type, rel2id["hasType"], exercises, types)
+ 
     S = jaccard_similarity(M)
     return dict(
         model="jaccard", label="Jaccard on target-muscle sets (no learning)",
@@ -583,7 +611,6 @@ def jaccard_baseline(G, cfg):
         silhouette_type=float("nan"),
         per_relation="{}",
     )
-
 
 # =====================================================================
 # 8. main
@@ -626,6 +653,13 @@ def main():
                           "modelo, lambda y semilla). Sin esto no se guarda nada.")
     ap_.add_argument("--save-seeds", dest="save_seeds", nargs="*", type=int, default=[0],
                      help="semillas cuyos embeddings se guardan; vacio guarda todas")
+    ap_.add_argument("--exclude-relations", dest="exclude_relations", nargs="*",
+                     default=[],
+                     help="relaciones que se EXCLUYEN del grafo de entrenamiento y de "
+                          "propagacion (y de sus inversas). La verdad de referencia de las "
+                          "metricas semanticas se sigue construyendo con el grafo COMPLETO, "
+                          "de modo que la etiqueta evaluada nunca entra al modelo. "
+                          "Ejemplo de control de fuga:  --exclude-relations hasType")
     ap_.add_argument("--no-inverse", dest="add_inverse", action="store_false")
     ap_.add_argument("--keep-duplicates", dest="dedup", action="store_false",
                      help="NO colapsar las aristas espejo (reproduce la fuga train/test)")
@@ -647,6 +681,19 @@ def main():
             G["edge_index"], G["edge_type"])
         print(f">> aristas espejo colapsadas: {removed} eliminadas, "
               f"{G['edge_index'].size(1)} aserciones unicas")
+
+    # copia intacta del grafo: es la verdad de referencia de las metricas semanticas
+    G["edge_index_full"] = G["edge_index"].clone()
+    G["edge_type_full"] = G["edge_type"].clone()
+    G["rel2id_full"] = dict(G["rel2id"])
+ 
+    if cfg.exclude_relations:
+        G["edge_index"], G["edge_type"], G["rel2id"], n_drop = exclude_relations(
+            G["edge_index"], G["edge_type"], G["rel2id"], cfg.exclude_relations)
+        print(f">> CONTROL: excluidas {cfg.exclude_relations} del entrenamiento y de la "
+              f"propagacion ({n_drop} aserciones fuera). Quedan "
+              f"{G['edge_index'].size(1)} aserciones y {len(G['rel2id'])} relaciones.")
+        print(">> la separacion por tipo se sigue midiendo con el grafo completo\n")
 
     print(f"nodos={G['x'].size(0)}  aristas={G['edge_index'].size(1)}  "
           f"relaciones={int(G['edge_type'].max()) + 1}  x.shape={tuple(G['x'].shape)}")

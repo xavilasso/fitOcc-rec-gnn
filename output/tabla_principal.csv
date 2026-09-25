@@ -1,0 +1,7 @@
+model,label,runs,params,auc,ap,delta_muscle,retrieval_muscle,delta_type,retrieval_type,silhouette_type
+jaccard,Jaccard on target-muscle sets (no learning),1,0,—,—,—,1.0000 ± nan,—,0.5427 ± nan,—
+mf,Free embeddings (matrix factorization),30,59008,0.8620 ± 0.0074,0.8242 ± 0.0093,0.4403 ± 0.0321,0.7804 ± 0.0077,0.3675 ± 0.0438,0.9283 ± 0.0073,0.1703 ± 0.0198
+distmult,"DistMult (relation types, no propagation)",30,59584,0.8555 ± 0.0081,0.8316 ± 0.0102,0.4388 ± 0.0096,0.7868 ± 0.0085,0.3027 ± 0.0234,0.8989 ± 0.0078,0.1276 ± 0.0126
+gcn,"GCN (topology, no relation types)",30,67328,0.8263 ± 0.0093,0.7930 ± 0.0114,0.5048 ± 0.0118,0.5092 ± 0.0157,0.4224 ± 0.0242,0.9019 ± 0.0119,0.1318 ± 0.0196
+gcn_distmult,GCN + relation-aware decoder,30,67904,0.7746 ± 0.0168,0.7486 ± 0.0158,0.5083 ± 0.0305,0.6112 ± 0.0126,0.3168 ± 0.0465,0.8406 ± 0.0128,0.0526 ± 0.0272
+rgcn,R-GCN (relation-aware propagation),30,215360,0.7804 ± 0.1006,0.7635 ± 0.0943,0.5194 ± 0.1457,0.7739 ± 0.0444,0.3932 ± 0.1373,0.8917 ± 0.0122,0.1210 ± 0.0417

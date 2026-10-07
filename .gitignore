@@ -3,6 +3,10 @@ fitkg_output/
 emb/
 old_versions/
 output/
+*.png
+fig*
+figura*
+tmp/
 
 
 # Byte-compiled / optimized / DLL files

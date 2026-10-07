@@ -305,9 +305,17 @@ class Model(nn.Module):
                                num_relations_mp, num_bases, dropout, normalize,
                                learnable_input, input_dim)
         self.decoder_kind = decoder_kind
-        if decoder_kind == "distmult":
+        if decoder_kind in ("distmult", "complex", "transe"):
             self.rel_weights = nn.Parameter(torch.empty(num_relations_score, out_dim))
             nn.init.xavier_uniform_(self.rel_weights)
+        if decoder_kind == "transe":
+            # TransE puntua una distancia, no un producto interno. El sesgo escalar
+            # desplaza el puntaje al rango donde la BCE puede operar sin cambiar el
+            # orden de los pares; es un unico parametro y mantiene el presupuesto.
+            self.dist_bias = nn.Parameter(torch.ones(()))
+        if decoder_kind == "complex" and out_dim % 2 != 0:
+            raise SystemExit("El decodificador ComplEx necesita --out-dim par; "
+                             f"se recibio {out_dim}.")
 
     def forward(self, x, edge_index, edge_type):
         return self.encoder(x, edge_index, edge_type)
@@ -316,6 +324,21 @@ class Model(nn.Module):
         src, dst = edge_index
         if self.decoder_kind == "dot":
             return (z[src] * z[dst]).sum(dim=1)
+        if self.decoder_kind == "transe":
+            r = self.rel_weights[edge_type]
+            d = torch.linalg.vector_norm(z[src] + r - z[dst], ord=2, dim=1)
+            return self.dist_bias - d
+        if self.decoder_kind == "complex":
+            h, t = z[src], z[dst]
+            r = self.rel_weights[edge_type]
+            k = h.size(1) // 2
+            h_re, h_im = h[:, :k], h[:, k:]
+            t_re, t_im = t[:, :k], t[:, k:]
+            r_re, r_im = r[:, :k], r[:, k:]
+            return (h_re * r_re * t_re
+                    + h_re * r_im * t_im
+                    + h_im * r_re * t_im
+                    - h_im * r_im * t_re).sum(dim=1)
         return (z[src] * self.rel_weights[edge_type] * z[dst]).sum(dim=1)
 
 
@@ -326,6 +349,8 @@ MODEL_ZOO = {
     "gcn":           ("gcn",   "dot",      "GCN (topology, no relation types)"),
     "gcn_distmult":  ("gcn",   "distmult", "GCN + relation-aware decoder"),
     "rgcn":          ("rgcn",  "distmult", "R-GCN (relation-aware propagation)"),
+    "transe":        ("free",  "transe",   "TransE (translational decoder, no propagation)"),
+    "complex":       ("free",  "complex",  "ComplEx (complex bilinear decoder, no propagation)"),
 }
 
 
